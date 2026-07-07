@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+model AuditLog {
+  id           String     @id @default(cuid())
+  adminNip     String
+  action       String     // e.g., "CREATE_COURSE", "EDIT_COURSE", "DELETE_COURSE"
+  entityType   String     // e.g., "COURSE"
+  entityId     String?    // ID of the created/edited course
+  details      String?    @db.Text
+  createdAt    DateTime   @default(now())
+
+  admin        User       @relation(fields: [adminNip], references: [nip])
+}
+
+enum AuthMethod {
+  LOCAL
+  SSO
+  BOTH
+}
+
+enum ModuleType {
+  H5P
+  VIDEO
+  DOCUMENT
+  QUIZ
+  LINK
+  ASSIGNMENT
+  CATEGORY
+  GAMIFICATION
+  GAME_FLASHCARD
+  GAME_MATCHING
+  GAME_BLANKS
+  ARTICLE
+}
+
+model User {
+  nip          String     @id @db.VarChar(20) // Primary Key sesuai permintaan
+  name         String
+  email        String     @unique
+  password     String?    // Nullable untuk user yang murni SSO
+  role         Role       @default(STUDENT)
+  authMethod   AuthMethod @default(LOCAL)
+  image        String?    // URL foto profil lokal
+  
+  // Relations
+  enrollments  Enrollment[]
+  taughtCourses Course[]    @relation("TeacherCourses")
+  scores       Score[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String     @unique
+  description  String?    @db.Text
+  icon         String?    // Emoji or icon name
+  color        String?    // Hex color for badge display
+  courses      Course[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Course {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?    @db.Text
+  thumbnail    String?    // Path file lokal
+  published    Boolean    @default(false)
+  hasCertificate Boolean  @default(false)
+  certificateBg  String?  // Legacy or override
+  certificateConfig String? @db.Text // JSON for x,y positions (Legacy or override)
+  certificateTemplateId String?
+  certificateTemplate CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id], onDelete: SetNull)
+  
+  // Relations
+  categoryId   String?
+  category     Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  teacherNip   String
+  teacher      User       @relation("TeacherCourses", fields: [teacherNip], references: [nip])
+  modules      Module[]
+  enrollments  Enrollment[]
+  
+  createdAt    DateTime   @default(now())
+}
+
+model Module {
+  id           String     @id @default(cuid())
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title        String
+  type         ModuleType
+  contentPath  String?    // Path file lokal untuk .h5p, .mp4, atau .pdf
+  order        Int        // Untuk mengurutkan materi
+  minPassingScore Float?   // Batas minimum skor kelulusan (opsional, untuk gamifikasi/kuis)
+  
+  scores       Score[]
+  questions    Question[]
+}
+
+model Enrollment {
+  id           String     @id @default(cuid())
+  userNip      String
+  courseId     String
+  user         User       @relation(fields: [userNip], references: [nip], onDelete: Cascade)
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress     Float      @default(0) // 0 - 100
+  completed    Boolean    @default(false)
+  
+  @@unique([userNip, courseId]) // Satu user hanya bisa enroll satu kali per kursus
+}
+
+model Score {
+  id           String     @id @default(cuid())
+  userNip      String
+  moduleId     String
+  user         User       @relation(fields: [userNip], references: [nip], onDelete: Cascade)
+  module       Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  value        Float      // Menyimpan skor dari H5P atau Kuis
+  status       String     @default("FINISHED")
+  feedback     String?    @db.Text
+  
+  createdAt    DateTime   @default(now())
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  moduleId      String
+  module        Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  text          String   @db.Text
+  options       Option[]
+  createdAt     DateTime @default(now())
+}
+
+model Option {
+  id            String   @id @default(cuid())
+  questionId    String
+  question      Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text          String   @db.Text
+  isCorrect     Boolean  @default(false)
+}
+
+model Setting {
+  key   String @id
+  value String @db.Text
+}
+
+model CertificateTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  backgroundImage String
+  config       String   @db.Text // JSON for x,y positions, e.g. {name: {x,y,align}, course: {x,y,align}}
+  courses      Course[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
