@@ -67,6 +67,14 @@ npx prisma db push
 node seed.mjs
 ```
 
+**Kredensial Default (Setelah Seeding):**
+- **Akun Siswa (Student):**
+  - NIP / Username: `198001012000011001`
+  - Password: `123456`
+- **Akun Guru (Teacher):**
+  - NIP / Username: `198001012000011002`
+  - Password: `123456`
+
 ### 5. Jalankan Aplikasi
 Jalankan server untuk mode pengembangan (development mode):
 ```bash
