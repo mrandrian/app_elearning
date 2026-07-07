@@ -49,3 +49,6 @@ seed.mjs
 test-prisma.js
 debug-hit.log
 *.zip
+
+# uploads
+/public/uploads
